@@ -22,7 +22,7 @@
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; user-select: none; }
 
     body {
       background: var(--bg);
@@ -502,6 +502,13 @@ let W = 0, H = 0, DPR = 1;
 const rand  = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+// 鼠标位置（canvas 坐标）
+let mouseX = -9999, mouseY = -9999;
+document.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+
 // 树叶颜色池
 const LEAF_COLORS = [
   '#4a8c3f', '#5a9e4a', '#6ab04c', '#7bc67a',
@@ -576,6 +583,31 @@ function mkLeaf(isInit) {
   };
 }
 
+// ── 碰撞块（文字区域） ────────────────────────────
+// 每帧刷新，避免 scroll/resize 后错位
+const COLLIDE_SELECTORS = [
+  '.card', '.proj-card', '.hero-text', '.avatar-wrap', 'footer'
+];
+let collideRects = [];
+
+function refreshCollideRects() {
+  collideRects = [];
+  for (const sel of COLLIDE_SELECTORS) {
+    document.querySelectorAll(sel).forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        // 加 6px padding 让叶子提前开始绕行
+        collideRects.push({
+          l: r.left   - 6,
+          r: r.right  + 6,
+          t: r.top    - 6,
+          b: r.bottom + 6
+        });
+      }
+    });
+  }
+}
+
 function resetLeaves() {
   leaves.length = 0;
   for (let i = 0; i < LEAF_COUNT; i++) leaves.push(mkLeaf(true));
@@ -603,6 +635,16 @@ function updateLeaves() {
     // 速度阻尼
     l.vx *= 0.978;
     l.vy  = clamp(l.vy * 0.985, -8, 8);
+
+    // 鼠标吸引
+    const mdx   = mouseX - l.x;
+    const mdy   = mouseY - l.y;
+    const mdist = Math.hypot(mdx, mdy) || 1;
+    if (mdist < 250) {
+      const pull = (1 - mdist / 250) * 0.045;
+      l.vx += (mdx / mdist) * pull;
+      l.vy += (mdy / mdist) * pull;
+    }
 
     l.x += l.vx;
     l.y += l.vy;
@@ -651,7 +693,6 @@ function drawAllLeaves() {
 
 // ── 风力点击 ──────────────────────────────────────
 document.addEventListener('click', (e) => {
-  // 头像区域不触发风力和涟漪
   if (e.target.closest('#avatar-btn')) return;
 
   const cx = e.clientX, cy = e.clientY;
@@ -672,6 +713,54 @@ document.addEventListener('click', (e) => {
     l.vx += (dx / dist) * force * 0.6;
     l.vy += (dy / dist) * force * 0.6;
   }
+});
+
+// ── 拖拽风刷 ──────────────────────────────────────
+let brushDown  = false;
+let brushPrevX = 0, brushPrevY = 0;
+
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest('#avatar-btn')) return;
+  brushDown  = true;
+  brushPrevX = e.clientX;
+  brushPrevY = e.clientY;
+});
+
+document.addEventListener('mouseup',   () => { brushDown = false; });
+document.addEventListener('mouseleave', () => { brushDown = false; });
+
+document.addEventListener('mousemove', (e) => {
+  // 更新全局鼠标（给吸引力用）
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+
+  if (!brushDown) return;
+  if (e.target.closest('#avatar-btn')) return;
+
+  const cx = e.clientX, cy = e.clientY;
+  const dx = cx - brushPrevX;
+  const dy = cy - brushPrevY;
+  const speed = Math.hypot(dx, dy);
+  if (speed < 2) return; // 太慢不触发
+
+  // 风向就是鼠标移动方向
+  const ang = Math.atan2(dy, dx);
+  const strength = clamp(speed * 0.08, 0.3, 4);
+
+  for (const l of leaves) {
+    const ldx  = l.x - cx;
+    const ldy  = l.y - cy;
+    const dist = Math.hypot(ldx, ldy) || 1;
+    if (dist > 160) continue;
+    const falloff = 1 - dist / 160;
+    l.vx += Math.cos(ang) * strength * falloff;
+    l.vy += Math.sin(ang) * strength * falloff;
+    l.wind    = strength * falloff * 0.5;
+    l.windAng = ang;
+  }
+
+  brushPrevX = cx;
+  brushPrevY = cy;
 });
 
 // ── 主循环 ────────────────────────────────────────
