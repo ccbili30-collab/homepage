@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TravelB · 个人主页</title>
+  <style>
+    :root {
+      --green-deep:  #1e4620;
+      --green-mid:   #3a7d34;
+      --green-light: #6ab04c;
+      --green-pale:  #a8d5a2;
+      --leaf-1:      #4a8c3f;
+      --leaf-2:      #7bc67a;
+      --leaf-3:      #b5d99c;
+      --bg:          #eef7eb;
+      --card:        rgba(255,255,255,0.78);
+      --text:        #1e3a1a;
+      --text-sub:    #4a6e44;
+      --shadow:      rgba(60,120,50,0.10);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── 背景 canvas ── */
+    #leaf-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ── 点击涟漪 ── */
+    .ripple {
+      position: fixed;
+      border-radius: 50%;
+      border: 1.5px solid rgba(100,180,80,0.55);
+      pointer-events: none;
+      z-index: 5;
+      transform: translate(-50%, -50%) scale(0);
+      animation: ripple-out 0.7s ease-out forwards;
+    }
+    @keyframes ripple-out {
+      to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+    }
+
+    /* ── 内容层 ── */
+    #content {
+      position: relative;
+      z-index: 10;
+    }
+
+    /* ── 通用 section ── */
+    section {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 80px 32px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 24px;
+      padding: 48px 52px;
+      box-shadow: 0 8px 48px var(--shadow);
+      border: 1px solid rgba(160,210,140,0.25);
+      backdrop-filter: blur(2px);
+    }
+
+    /* ── Hero ── */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 32px;
+    }
+
+    .hero-inner {
+      display: flex;
+      align-items: center;
+      gap: 56px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .avatar-wrap {
+      position: relative;
+      flex-shrink: 0;
+      width: 148px;
+      height: 148px;
+    }
+
+    /* 旋转环 —— 在头像后面，不拦截点击 */
+    .avatar-ring {
+      position: absolute;
+      inset: -10px;
+      border-radius: 50%;
+      border: 2px dashed rgba(106,176,76,0.4);
+      animation: spin 18s linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 头像本体 —— 在环上方，可点击 */
+    .avatar {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 4px solid rgba(255,255,255,0.8);
+      box-shadow: 0 8px 32px rgba(60,120,50,0.22);
+      background: #c8e6c9;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* 水波纹 */
+    @keyframes avatar-ripple {
+      0%   { transform: scale(0);   opacity: 0.6; }
+      100% { transform: scale(2.2); opacity: 0;   }
+    }
+    .avatar-ripple-el {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(106,176,76,0.35);
+      pointer-events: none;
+      z-index: 2;
+      animation: avatar-ripple 0.7s ease-out forwards;
+    }
+
+    .hero-text { max-width: 420px; }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(106,176,76,0.15);
+      color: var(--green-mid);
+      border: 1px solid rgba(106,176,76,0.3);
+      border-radius: 100px;
+      padding: 4px 14px;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    .hero-name {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 700;
+      color: var(--green-deep);
+      line-height: 1.15;
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .hero-name span {
+      color: var(--green-light);
+    }
+
+    .hero-desc {
+      font-size: 16px;
+      color: var(--text-sub);
+      line-height: 1.75;
+      margin-bottom: 32px;
+    }
+
+    .btn-row { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-block;
+      padding: 11px 28px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      letter-spacing: 0.04em;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--shadow); }
+
+    .btn-primary {
+      background: var(--green-mid);
+      color: #fff;
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--green-mid);
+      border: 1.5px solid rgba(58,125,52,0.4);
+    }
+
+    /* ── Section 标题 ── */
+    .sec-label {
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      color: var(--green-light);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .sec-title {
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 700;
+      color: var(--green-deep);
+      margin-bottom: 36px;
+      line-height: 1.2;
+    }
+
+    /* ── Skills ── */
+    .skills-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .skill-tag {
+      padding: 8px 20px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      transition: transform 0.2s;
+      cursor: default;
+    }
+
+    .skill-tag:hover { transform: translateY(-2px); }
+
+    .skill-tag.l1 { background: rgba(58,125,52,0.12);  color: var(--green-deep); border: 1px solid rgba(58,125,52,0.2); }
+    .skill-tag.l2 { background: rgba(106,176,76,0.12); color: var(--green-mid);  border: 1px solid rgba(106,176,76,0.25); }
+    .skill-tag.l3 { background: rgba(181,217,156,0.25);color: #3a6e30;           border: 1px solid rgba(181,217,156,0.5); }
+
+    /* ── Projects ── */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .proj-card {
+      background: rgba(255,255,255,0.65);
+      border: 1px solid rgba(160,210,140,0.3);
+      border-radius: 18px;
+      padding: 28px 24px;
+      transition: transform 0.25s, box-shadow 0.25s;
+      cursor: pointer;
+    }
+
+    .proj-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 36px rgba(60,120,50,0.14);
+    }
+
+    .proj-icon {
+      font-size: 32px;
+      margin-bottom: 14px;
+    }
+
+    .proj-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--green-deep);
+      margin-bottom: 8px;
+    }
+
+    .proj-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      line-height: 1.65;
+      margin-bottom: 16px;
+    }
+
+    .proj-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .proj-tag {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      background: rgba(106,176,76,0.12);
+      color: var(--green-mid);
+      border: 1px solid rgba(106,176,76,0.2);
+    }
+
+    /* ── Contact ── */
+    .contact-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 32px;
+    }
+
+    .contact-text .sec-title { margin-bottom: 10px; }
+
+    .contact-sub {
+      font-size: 15px;
+      color: var(--text-sub);
+      line-height: 1.7;
+      max-width: 340px;
+    }
+
+    .social-links {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .social-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 100px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--green-mid);
+      border: 1.5px solid rgba(58,125,52,0.25);
+      background: rgba(255,255,255,0.6);
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .social-link:hover {
+      transform: translateY(-2px);
+      background: rgba(106,176,76,0.12);
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 32px;
+      font-size: 12px;
+      color: var(--green-pale);
+      position: relative;
+      z-index: 10;
+    }
+
+    /* ── 滚动淡入 ── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── 响应式 ── */
+    @media (max-width: 600px) {
+      .card { padding: 32px 24px; }
+      .hero-inner { gap: 32px; }
+      .contact-inner { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="leaf-canvas"></canvas>
+
+<div id="content">
+
+  <!-- Hero -->
+  <section id="hero">
+    <div class="hero-inner">
+      <div class="avatar-wrap">
+        <div class="avatar" id="avatar-btn">
+          <img src="avatar.ico" alt="头像" id="avatar-img" />
+        </div>
+        <div class="avatar-ring"></div>
+      </div>
+      <div class="hero-text">
+        <div class="hero-tag">✦ 立志成为ai开发者的机械系大学生</div>
+        <h1 class="hero-name">你好，我是<span>TravelB</span></h1>
+        <p class="hero-desc">
+          目前正在持续积累项目经验，关注前端开发、产品实现和用户体验。希望通过不断实践，做出既好看又好用的作品。<br><small style="font-size:12px;opacity:0.55;letter-spacing:0.04em;">「为什么登山？因为山，就在那里」</small>
+        </p>
+        <div class="btn-row">
+          <a href="#projects" class="btn btn-primary">查看项目</a>
+          <a href="#contact"  class="btn btn-outline">联系我</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 技能 -->
+  <section id="skills">
+    <div class="card fade-in">
+      <div class="sec-label">我的技术栈</div>
+      <div class="sec-title">技能 & 工具</div>
+      <div class="skills-grid">
+        <!-- l1=核心技能（深色）  l2=熟练（中色）  l3=了解（浅色） -->
+        <!-- 把下面的标签改成你自己的技能，可以增减 -->
+        <span class="skill-tag l1">UGNX</span>
+        <span class="skill-tag l1">OpenCode</span>
+        <span class="skill-tag l1">OpenClaw</span>
+        <span class="skill-tag l2">SolidWorks</span>
+        <span class="skill-tag l2">Catia</span>
+        <span class="skill-tag l3">Visual Studio Code</span>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- 项目 -->
+  <section id="projects">
+    <div class="sec-label fade-in">我做过的事</div>
+    <div class="sec-title fade-in">项目经历</div>
+    <div class="projects-grid">
+
+      <!-- 项目卡片1 -->
+      <div class="proj-card fade-in">
+        <div class="proj-icon">🌱</div>
+        <div class="proj-name">智能学习伴读系统文档</div>
+        <div class="proj-desc">方便老师上传学习资料供学生查阅。</div>
+        <div class="proj-tags">
+          <span class="proj-tag">文档系统</span>
+          <span class="proj-tag">前端</span>
+        </div>
+      </div>
+
+      <!-- 项目卡片2 -->
+      <div class="proj-card fade-in">
+        <div class="proj-icon">🍃</div>
+        <div class="proj-name">HarBot 陪伴型 AI 聊天工具</div>
+        <div class="proj-desc">AI 比爱更温暖。</div>
+        <div class="proj-tags">
+          <span class="proj-tag">AI</span>
+          <span class="proj-tag">聊天机器人</span>
+        </div>
+      </div>
+
+      <!-- 项目卡片3 -->
+      <div class="proj-card fade-in">
+        <div class="proj-icon">🌿</div>
+        <div class="proj-name">TravelCar 第一人称移动小车</div>
+        <div class="proj-desc">玩具。</div>
+        <div class="proj-tags">
+          <span class="proj-tag">硬件</span>
+          <span class="proj-tag">机械</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 联系 -->
+  <section id="contact">
+    <div class="card fade-in">
+      <div class="contact-inner">
+        <div class="contact-text">
+          <div class="sec-label">打个招呼</div>
+          <div class="sec-title">期待与你合作</div>
+          <p class="contact-sub">
+            欢迎聊聊项目合作、技术交流或有趣的想法，随时发消息给我。
+          </p>
+        </div>
+        <div class="social-links">
+          <a href="mailto:1601456578@qq.com" class="social-link">📧 邮件</a>
+          <a href="#"                         class="social-link">🐙 GitHub</a>
+          <a href="#"                         class="social-link">💬 微信</a>
+          <a href="#"                         class="social-link">🔗 其他</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    用 🌿 制作 · TravelB · 2026
+  </footer>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  树叶引擎
+// ══════════════════════════════════════════════════
+const canvas = document.getElementById('leaf-canvas');
+const ctx    = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+const rand  = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// 树叶颜色池
+const LEAF_COLORS = [
+  '#4a8c3f', '#5a9e4a', '#6ab04c', '#7bc67a',
+  '#8fce7a', '#a8d5a2', '#b5d99c', '#c8e6c9',
+  '#3a7d34', '#2d6b28'
+];
+
+// ── 绘制单片树叶 ──────────────────────────────────
+function drawLeaf(x, y, size, angle, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  // 叶片主体（椭圆近似）
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.bezierCurveTo( size * 0.55, -size * 0.5,  size * 0.55,  size * 0.5,  0,  size);
+  ctx.bezierCurveTo(-size * 0.55,  size * 0.5, -size * 0.55, -size * 0.5,  0, -size);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // 中脉
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(0,  size);
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = size * 0.08;
+  ctx.stroke();
+
+  // 侧脉（3对）
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = size * 0.04;
+  for (let i = 1; i <= 3; i++) {
+    const py = -size + (size * 2 * i) / 4;
+    const px = size * 0.42 * (1 - Math.abs(py) / size);
+    ctx.beginPath();
+    ctx.moveTo(0, py);
+    ctx.lineTo( px, py + size * 0.18);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, py);
+    ctx.lineTo(-px, py + size * 0.18);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ── 树叶对象池 ────────────────────────────────────
+const leaves = [];
+const LEAF_COUNT = 55;
+
+function mkLeaf(isInit) {
+  const size  = rand(8, 22);
+  const color = LEAF_COLORS[Math.floor(Math.random() * LEAF_COLORS.length)];
+  return {
+    x:      rand(0, W),
+    y:      isInit ? rand(-H, H) : rand(-60, -10),  // 初始化时分散，之后从顶部生成
+    vx:     rand(-0.3, 0.3),
+    vy:     rand(0.4, 1.1),
+    angle:  rand(0, Math.PI * 2),
+    vAngle: rand(-0.012, 0.012),
+    size,
+    color,
+    alpha:  rand(0.55, 0.92),
+    swing:  rand(0, Math.PI * 2),   // 左右摆动相位
+    swingSpd: rand(0.012, 0.028),
+    swingAmp: rand(0.18, 0.55),
+    wind:   0,    // 风力衰减值
+    windAng: 0    // 风力方向
+  };
+}
+
+function resetLeaves() {
+  leaves.length = 0;
+  for (let i = 0; i < LEAF_COUNT; i++) leaves.push(mkLeaf(true));
+}
+
+// ── 更新树叶 ──────────────────────────────────────
+function updateLeaves() {
+  for (let i = 0; i < leaves.length; i++) {
+    const l = leaves[i];
+
+    l.swing += l.swingSpd;
+
+    // 风力衰减
+    if (l.wind > 0) {
+      l.vx += Math.cos(l.windAng) * l.wind * 0.18;
+      l.vy += Math.sin(l.windAng) * l.wind * 0.18;
+      l.wind *= 0.88;
+      if (l.wind < 0.05) l.wind = 0;
+    }
+
+    // 自然飘落 + 左右摆动
+    l.vx += Math.sin(l.swing) * l.swingAmp * 0.012;
+    l.vy += 0.018;  // 重力
+
+    // 速度阻尼
+    l.vx *= 0.978;
+    l.vy  = clamp(l.vy * 0.985, -8, 8);
+
+    l.x += l.vx;
+    l.y += l.vy;
+    l.angle += l.vAngle + Math.sin(l.swing) * 0.008;
+
+    // 飞出屏幕后重生
+    if (l.y > H + 40 || l.x < -80 || l.x > W + 80) {
+      Object.assign(l, mkLeaf(false));
+    }
+  }
+}
+
+// ── 渲染 ──────────────────────────────────────────
+function drawBg() {
+  // 渐变背景
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0,   '#d4edcc');
+  grad.addColorStop(0.5, '#e8f5e3');
+  grad.addColorStop(1,   '#f0f7ee');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 光斑（模拟树荫光影）
+  const spots = [
+    { x: W * 0.15, y: H * 0.12, r: W * 0.18, a: 0.07 },
+    { x: W * 0.82, y: H * 0.28, r: W * 0.14, a: 0.06 },
+    { x: W * 0.55, y: H * 0.65, r: W * 0.20, a: 0.05 },
+    { x: W * 0.08, y: H * 0.72, r: W * 0.12, a: 0.06 },
+  ];
+  for (const s of spots) {
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+    g.addColorStop(0,   `rgba(200,240,160,${s.a})`);
+    g.addColorStop(1,   'rgba(200,240,160,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawAllLeaves() {
+  for (const l of leaves) {
+    drawLeaf(l.x, l.y, l.size, l.angle, l.color, l.alpha);
+  }
+}
+
+// ── 风力点击 ──────────────────────────────────────
+document.addEventListener('click', (e) => {
+  // 头像区域不触发风力和涟漪
+  if (e.target.closest('#avatar-btn')) return;
+
+  const cx = e.clientX, cy = e.clientY;
+  const rip = document.createElement('div');
+  rip.className = 'ripple';
+  rip.style.cssText = `left:${cx}px;top:${cy}px;width:120px;height:120px;`;
+  document.body.appendChild(rip);
+  setTimeout(() => rip.remove(), 700);
+
+  for (const l of leaves) {
+    const dx   = l.x - cx;
+    const dy   = l.y - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    if (dist > 320) continue;
+    const force = clamp(200 / (dist + 20), 0.4, 10);
+    l.wind    = force;
+    l.windAng = Math.atan2(dy, dx);
+    l.vx += (dx / dist) * force * 0.6;
+    l.vy += (dy / dist) * force * 0.6;
+  }
+});
+
+// ── 主循环 ────────────────────────────────────────
+function loop() {
+  drawBg();
+  updateLeaves();
+  drawAllLeaves();
+  requestAnimationFrame(loop);
+}
+
+// ── 初始化 ────────────────────────────────────────
+function init() {
+  W   = window.innerWidth;
+  H   = window.innerHeight;
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width  = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  resetLeaves();
+}
+
+window.addEventListener('resize', init);
+init();
+loop();
+
+// ══════════════════════════════════════════════════
+//  滚动淡入
+// ══════════════════════════════════════════════════
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 80);
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.12 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// ══════════════════════════════════════════════════
+//  头像音乐播放器 + 水波纹
+// ══════════════════════════════════════════════════
+(function() {
+  const avatarBtn  = document.getElementById('avatar-btn');
+  const avatarWrap = avatarBtn.closest('.avatar-wrap');
+  const avatarImg  = avatarBtn.querySelector('img');
+
+  // 创建 audio 元素
+  const audio = document.createElement('audio');
+  audio.src   = 'music.mp3';
+  audio.loop  = true;
+  document.body.appendChild(audio);
+
+  let playing  = false;
+  let rotation = 0;
+  let rafId    = null;
+
+  // 水波纹
+  function spawnRipple() {
+    const el = document.createElement('div');
+    el.className = 'avatar-ripple-el';
+    avatarWrap.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+
+  // 自转
+  function spinFrame() {
+    rotation += 0.18;
+    avatarImg.style.transform = 'rotate(' + rotation + 'deg)';
+    rafId = requestAnimationFrame(spinFrame);
+  }
+
+  // 回正
+  function snapBack() {
+    cancelAnimationFrame(rafId);
+    let cur = ((rotation % 360) + 360) % 360;
+    const toFull = 360 - cur;
+    const toZero = cur;
+    const delta  = toFull < toZero ? 1.8 : -1.8;
+    let going    = cur;
+
+    function step() {
+      going += delta;
+      avatarImg.style.transform = 'rotate(' + going + 'deg)';
+      const done = delta > 0 ? going >= cur + toFull : going <= 0;
+      if (!done) {
+        requestAnimationFrame(step);
+      } else {
+        avatarImg.style.transform = 'rotate(0deg)';
+        rotation = 0;
+      }
+    }
+    step();
+  }
+
+  avatarBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    spawnRipple();
+
+    if (!playing) {
+      audio.play().then(() => {
+        playing = true;
+        spinFrame();
+      }).catch(err => console.warn('音频播放失败:', err));
+    } else {
+      audio.pause();
+      playing = false;
+      snapBack();
+    }
+  });
+})();
+</script>
+</body>
+</html>
